@@ -590,13 +590,20 @@ describe('Breakout rooms', () => {
         expect(finalMsg.editedAt).toBeUndefined();
         expect(finalMsg.message).toBe(testMsg);
 
-        // 9. Verify in the DOM: scoped strictly to this specific message element
-        const messageElem = await p1.driver.$(`#${finalMsg.messageId}`);
+        // 9. Verify in the DOM: scoped strictly to this specific message element using [id="..."]
+        const messageElem = await p1.driver.$(`[id="${finalMsg.messageId}"]`);
 
         expect(await messageElem.isExisting()).toBe(true);
 
         const editedLabel = await messageElem.$('div*=(edited)');
 
         expect(await editedLabel.isExisting()).toBe(false);
+
+        // 10. Cleanup: bring p2 back to the main room and close p1 chat panel for suite isolation
+        await p2BreakoutRooms.leaveBreakoutRoom();
+
+        if (await p1.getChatPanel().isOpen()) {
+            await p1.getToolbar().clickChatButton();
+        }
     });
 });
