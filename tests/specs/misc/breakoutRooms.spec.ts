@@ -487,18 +487,28 @@ describe('Breakout rooms', () => {
 
     it('does not mark chat messages as edited when breakout rooms are updated', async () => {
         const { p1, p2 } = ctx;
-
-        // Bring p2 back to the main room
+        const p1BreakoutRooms = p1.getBreakoutRooms();
         const p2BreakoutRooms = p2.getBreakoutRooms();
 
+        // Ensure p2 is in the main room before sending the message
         await p2BreakoutRooms.leaveBreakoutRoom();
+
+        await p1.driver.waitUntil(
+            async () => {
+                const list = await p1BreakoutRooms.getRooms();
+
+                return list?.length === 1 && list[0].participantCount === 0;
+            }, {
+                timeout: 5000,
+                timeoutMsg: 'P2 did not leave breakout room before chat test'
+            });
 
         // Open chat panel for p1
         if (!await p1.getChatPanel().isOpen()) {
             await p1.getToolbar().clickChatButton();
         }
 
-        // p2 sends a message in the main room
+        // p2 sends a message while in the main room
         const testMsg = `Breakout chat test ${Date.now()}`;
 
         await p2.getChatPanel().sendMessage(testMsg);
@@ -513,14 +523,38 @@ describe('Breakout rooms', () => {
             timeoutMsg: 'Message was not received by p1'
         });
 
+        const initialMsg = await p1.driver.execute((text: string) => {
+            const messages = APP.store.getState()['features/chat']?.messages || [];
+
+            return messages.find((m: any) => m.message === text);
+        }, testMsg);
+
+        expect(initialMsg).toBeDefined();
+        expect(initialMsg.isEdited).toBeFalsy();
+        expect(initialMsg.editedAt).toBeUndefined();
+
         // Send p2 to the breakout room
-        const p1BreakoutRooms = p1.getBreakoutRooms();
         const rooms = await p1BreakoutRooms.getRooms();
 
         expect(rooms.length).toBeGreaterThan(0);
         await p1BreakoutRooms.sendParticipantToBreakoutRoom(p2, rooms[0].name);
 
-        // Wait for breakout room display name update in p1's chat store
+        await p1.driver.waitUntil(
+            async () => {
+                const list = await p1BreakoutRooms.getRooms();
+
+                return list?.length === 1 && list[0].participantCount === 1;
+            }, {
+                timeout: 5000,
+                timeoutMsg: 'P2 was not moved to the breakout room'
+            });
+
+        // In the breakout room, change p2's display name to trigger the display name sync
+        const newDisplayName = `Renamed-${Date.now()}`;
+
+        await p2.setLocalDisplayName(newDisplayName);
+
+        // Wait for the breakout-room display name sync to update p1's chat store
         await p1.driver.waitUntil(async () => {
             const updatedMsg = await p1.driver.execute((text: string) => {
                 const messages = APP.store.getState()['features/chat']?.messages || [];
@@ -528,20 +562,27 @@ describe('Breakout rooms', () => {
                 return messages.find((m: any) => m.message === text);
             }, testMsg);
 
-            return updatedMsg && !updatedMsg.isEdited && updatedMsg.editedAt === undefined;
+            return updatedMsg?.displayName === newDisplayName;
         }, {
             timeout: 5000,
-            timeoutMsg: 'Message was marked as edited or editedAt was set after breakout room update'
+            timeoutMsg: 'Chat message display name was not updated to breakout room name'
         });
 
+        // Verify that the message retains its unedited status in Redux
         const finalMsg = await p1.driver.execute((text: string) => {
             const messages = APP.store.getState()['features/chat']?.messages || [];
 
             return messages.find((m: any) => m.message === text);
         }, testMsg);
 
+        expect(finalMsg.displayName).toBe(newDisplayName);
         expect(finalMsg.isEdited).toBeFalsy();
         expect(finalMsg.editedAt).toBeUndefined();
         expect(finalMsg.message).toBe(testMsg);
+
+        // Verify in the DOM that no (edited) indicator is displayed
+        const editedIndicator = await p1.driver.$('span*=(edited)');
+
+        expect(await editedIndicator.isExisting()).toBe(false);
     });
 });

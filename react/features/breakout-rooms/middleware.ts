@@ -125,7 +125,7 @@ MiddlewareRegistry.register(({ dispatch, getState }) => next => action => {
         const { messages } = getState()['features/chat'];
 
         messages?.forEach(m => {
-            if (m.messageType === MESSAGE_TYPE_REMOTE && !getParticipantById(getState(), m.participantId)) {
+            if (m.messageType === MESSAGE_TYPE_REMOTE && m.participantId && !getParticipantById(getState(), m.participantId)) {
                 const rooms: IRooms = action.rooms;
 
                 for (const room of Object.values(rooms)) {
@@ -135,7 +135,7 @@ MiddlewareRegistry.register(({ dispatch, getState }) => next => action => {
                     if (matchedJid) {
                         const newDisplayName = participants[matchedJid].displayName;
 
-                        if (newDisplayName && m.displayName !== newDisplayName) {
+                        if (m.messageId && newDisplayName && m.displayName !== newDisplayName) {
                             dispatch(setMessageDisplayName(m.messageId, newDisplayName));
                         }
 
