@@ -484,4 +484,64 @@ describe('Breakout rooms', () => {
 
         await checkSubject(p2, myNewRoomName);
     });
+
+    it('does not mark chat messages as edited when breakout rooms are updated', async () => {
+        const { p1, p2 } = ctx;
+
+        // Bring p2 back to the main room
+        const p2BreakoutRooms = p2.getBreakoutRooms();
+
+        await p2BreakoutRooms.leaveBreakoutRoom();
+
+        // Open chat panel for p1
+        if (!await p1.getChatPanel().isOpen()) {
+            await p1.getToolbar().clickChatButton();
+        }
+
+        // p2 sends a message in the main room
+        const testMsg = `Breakout chat test ${Date.now()}`;
+
+        await p2.getChatPanel().sendMessage(testMsg);
+
+        // Wait for message to arrive at p1
+        await p1.driver.waitUntil(async () => {
+            const messages = await p1.driver.execute(() => APP.store.getState()['features/chat']?.messages || []);
+
+            return messages.some((m: any) => m.message === testMsg);
+        }, {
+            timeout: 5000,
+            timeoutMsg: 'Message was not received by p1'
+        });
+
+        // Send p2 to the breakout room
+        const p1BreakoutRooms = p1.getBreakoutRooms();
+        const rooms = await p1BreakoutRooms.getRooms();
+
+        expect(rooms.length).toBeGreaterThan(0);
+        await p1BreakoutRooms.sendParticipantToBreakoutRoom(p2, rooms[0].name);
+
+        // Wait for breakout room display name update in p1's chat store
+        await p1.driver.waitUntil(async () => {
+            const updatedMsg = await p1.driver.execute((text: string) => {
+                const messages = APP.store.getState()['features/chat']?.messages || [];
+
+                return messages.find((m: any) => m.message === text);
+            }, testMsg);
+
+            return updatedMsg && !updatedMsg.isEdited && updatedMsg.editedAt === undefined;
+        }, {
+            timeout: 5000,
+            timeoutMsg: 'Message was marked as edited or editedAt was set after breakout room update'
+        });
+
+        const finalMsg = await p1.driver.execute((text: string) => {
+            const messages = APP.store.getState()['features/chat']?.messages || [];
+
+            return messages.find((m: any) => m.message === text);
+        }, testMsg);
+
+        expect(finalMsg.isEdited).toBeFalsy();
+        expect(finalMsg.editedAt).toBeUndefined();
+        expect(finalMsg.message).toBe(testMsg);
+    });
 });

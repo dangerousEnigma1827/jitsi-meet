@@ -2,7 +2,7 @@ import { JitsiConferenceEvents } from '../base/lib-jitsi-meet';
 import { getParticipantById } from '../base/participants/functions';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
 import StateListenerRegistry from '../base/redux/StateListenerRegistry';
-import { editMessage } from '../chat/actions.any';
+import { setMessageDisplayName } from '../chat/actions.any';
 import { MESSAGE_TYPE_REMOTE } from '../chat/constants';
 
 import { UPDATE_BREAKOUT_ROOMS } from './actionTypes';
@@ -133,9 +133,13 @@ MiddlewareRegistry.register(({ dispatch, getState }) => next => action => {
                     const matchedJid = Object.keys(participants).find(jid => jid.endsWith(m.participantId));
 
                     if (matchedJid) {
-                        m.displayName = participants[matchedJid].displayName;
+                        const newDisplayName = participants[matchedJid].displayName;
 
-                        dispatch(editMessage(m));
+                        if (newDisplayName && m.displayName !== newDisplayName) {
+                            dispatch(setMessageDisplayName(m.messageId, newDisplayName));
+                        }
+
+                        break;
                     }
                 }
             }
