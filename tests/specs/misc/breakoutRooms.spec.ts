@@ -540,6 +540,12 @@ describe('Breakout rooms', () => {
         expect(initialMsg.isEdited).toBeFalsy();
         expect(initialMsg.editedAt).toBeUndefined();
 
+        // P1 opens and closes chat so that lastReadMessage points to this message
+        if (!await p1.getChatPanel().isOpen()) {
+            await p1.getToolbar().clickChatButton();
+            await p1.getToolbar().clickCloseChatButton();
+        }
+
         // 4. Update p2's display name so that breakout room participant data has an updated name
         const updatedDisplayName = `P2-Breakout-${Date.now()}`;
 
@@ -588,6 +594,12 @@ describe('Breakout rooms', () => {
         expect(finalMsg.isEdited).toBeFalsy();
         expect(finalMsg.editedAt).toBeUndefined();
         expect(finalMsg.message).toBe(testMsg);
+
+        const lastReadMsg = await p1.driver.execute(() => APP.store.getState()['features/chat']?.lastReadMessage);
+
+        expect(lastReadMsg).toBeDefined();
+        expect(lastReadMsg.messageId).toBe(finalMsg.messageId);
+        expect(lastReadMsg.displayName).toBe(updatedDisplayName);
 
         // 8. Verify in the DOM: open chat panel for p1 and scope strictly to this specific message
         if (!await p1.getChatPanel().isOpen()) {

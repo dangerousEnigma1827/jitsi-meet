@@ -380,6 +380,7 @@ ReducerRegistry.register<IChatState>('features/chat', (state = DEFAULT_STATE, ac
 
         return {
             ...state,
+            lastReadMessage: _getLastReadMessage(state, messages),
             messages
         };
     }
